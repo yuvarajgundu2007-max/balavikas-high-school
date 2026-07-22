@@ -10,6 +10,7 @@ import {
   deleteEnquiry, 
   isLiveDatabase 
 } from './firebase.js';
+import emailjs from '@emailjs/browser';
 
 /* ==========================================================================
    Balavikas School Main Engine with Live Firebase & Local Storage Fallback
@@ -592,7 +593,6 @@ function initModalsAndForms() {
       date: new Date().toISOString()
     };
 
-    // Save to Live Database if configured, otherwise fallback to local
     let id = refId;
     if (isLiveDatabase()) {
       const fbId = await addEnquiry(newEnq);
@@ -603,7 +603,6 @@ function initModalsAndForms() {
       saveLocalDB();
     }
 
-    // Refresh memory models and UI
     if (isLiveDatabase()) {
       db.enquiries = await getEnquiries(db.enquiries);
     }
@@ -663,8 +662,16 @@ function initModalsAndForms() {
 }
 
 /* ==========================================================================
-   Admin Portal Controller and Management Table
+   Admin Portal Controller and Email Verification OTP System
    ========================================================================== */
+
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@balavikaskadapa.edu.in';
+const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+let currentOTP = null;
+let otpExpiryTime = null;
 
 function checkAdminSession() {
   const isLoggedIn = sessionStorage.getItem('bv_admin_session') === 'true';
@@ -678,28 +685,140 @@ function checkAdminSession() {
   } else {
     loginCard.classList.remove('hidden');
     dashboard.classList.add('hidden');
+    
+    // Reset login steps
+    document.getElementById('admin-email-form').classList.remove('hidden');
+    document.getElementById('admin-otp-form').classList.add('hidden');
+    document.getElementById('email-error-msg').classList.add('hidden');
+    document.getElementById('otp-error-msg').classList.add('hidden');
   }
 }
 
 function initAdminPortal() {
-  const loginForm = document.getElementById('admin-login-form');
-  const passwordInput = document.getElementById('admin-password');
-  const errorMsg = document.getElementById('login-error-msg');
+  const emailForm = document.getElementById('admin-email-form');
+  const otpForm = document.getElementById('admin-otp-form');
+  const emailInput = document.getElementById('admin-login-email');
+  const otpInput = document.getElementById('admin-login-otp');
+  const emailError = document.getElementById('email-error-msg');
+  const otpError = document.getElementById('otp-error-msg');
+  const otpSentStatus = document.getElementById('otp-sent-status');
+  const resendBtn = document.getElementById('resend-otp-btn');
   const logoutBtn = document.getElementById('admin-logout-btn');
 
-  loginForm.addEventListener('submit', (e) => {
+  let resendTimer = null;
+  let countdown = 30;
+
+  const startResendCountdown = () => {
+    resendBtn.disabled = true;
+    countdown = 30;
+    resendBtn.textContent = `Resend Code (${countdown}s)`;
+    if (resendTimer) clearInterval(resendTimer);
+    
+    resendTimer = setInterval(() => {
+      countdown--;
+      if (countdown <= 0) {
+        clearInterval(resendTimer);
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Resend Code';
+      } else {
+        resendBtn.textContent = `Resend Code (${countdown}s)`;
+      }
+    }, 1000);
+  };
+
+  const sendVerificationEmail = async (emailAddress) => {
+    // Generate secure 6-digit OTP
+    currentOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    otpExpiryTime = Date.now() + 5 * 60 * 1000; // 5 minutes validity
+
+    console.log(`[AUTH] Generated OTP: ${currentOTP} (Expires at: ${new Date(otpExpiryTime).toLocaleTimeString()})`);
+    
+    // If EmailJS parameters are configured
+    if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
+      try {
+        otpSentStatus.textContent = 'Sending secure verification code...';
+        otpSentStatus.style.color = '#d97706';
+
+        await emailjs.send(
+          EMAILJS_SERVICE_ID,
+          EMAILJS_TEMPLATE_ID,
+          {
+            to_email: emailAddress,
+            otp_code: currentOTP,
+            app_name: 'Balavikas High School Admin Portal'
+          },
+          EMAILJS_PUBLIC_KEY
+        );
+
+        otpSentStatus.textContent = `Verification code sent to ${emailAddress}. Valid for 5 minutes.`;
+        otpSentStatus.style.color = '#16a34a';
+      } catch (err) {
+        console.error('EmailJS failed, falling back to browser alert:', err);
+        alert(`[Developer Alert] EmailJS failed to send email. Code: ${currentOTP}`);
+        otpSentStatus.textContent = `[Developer Mode] Code logged to alert. Entered code is: ${currentOTP}`;
+        otpSentStatus.style.color = '#dc2626';
+      }
+    } else {
+      // Fallback alert for testing/dev environment
+      alert(`[Developer Mode] EmailJS configuration not found.\nVerification code sent to ${emailAddress} is: ${currentOTP}\n\nPlease enter this code to log in.`);
+      otpSentStatus.textContent = `[Developer Mode] Code: ${currentOTP}. Valid for 5 minutes.`;
+      otpSentStatus.style.color = '#d97706';
+    }
+
+    // Toggle steps
+    emailForm.classList.add('hidden');
+    otpForm.classList.remove('hidden');
+    startResendCountdown();
+  };
+
+  // Step 1: Submit Email
+  emailForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (passwordInput.value === 'admin123') {
+    const enteredEmail = emailInput.value.trim().toLowerCase();
+
+    if (enteredEmail !== ADMIN_EMAIL.toLowerCase()) {
+      emailError.classList.remove('hidden');
+      return;
+    }
+
+    emailError.classList.add('hidden');
+    await sendVerificationEmail(enteredEmail);
+  });
+
+  // Step 2: Submit OTP Code
+  otpForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const enteredOTP = otpInput.value.trim();
+
+    if (Date.now() > otpExpiryTime) {
+      otpError.textContent = 'Verification code has expired. Please resend a new code.';
+      otpError.classList.remove('hidden');
+      return;
+    }
+
+    if (enteredOTP === currentOTP) {
+      otpError.classList.add('hidden');
       sessionStorage.setItem('bv_admin_session', 'true');
-      errorMsg.classList.add('hidden');
-      passwordInput.value = '';
+      
+      currentOTP = null;
+      otpExpiryTime = null;
+      otpInput.value = '';
+      emailInput.value = '';
+
       checkAdminSession();
     } else {
-      errorMsg.classList.remove('hidden');
-      passwordInput.value = '';
+      otpError.textContent = 'Incorrect verification code. Access denied.';
+      otpError.classList.remove('hidden');
     }
   });
 
+  // Resend OTP
+  resendBtn.addEventListener('click', async () => {
+    const enteredEmail = emailInput.value.trim().toLowerCase();
+    await sendVerificationEmail(enteredEmail);
+  });
+
+  // Logout
   logoutBtn.addEventListener('click', () => {
     sessionStorage.removeItem('bv_admin_session');
     checkAdminSession();
@@ -715,12 +834,7 @@ function initAdminPortal() {
     const category = document.getElementById('ach-category').value;
     const year = document.getElementById('ach-year').value;
 
-    const newAch = {
-      name,
-      desc,
-      category,
-      year
-    };
+    const newAch = { name, desc, category, year };
 
     if (isLiveDatabase()) {
       await addAchievement(newAch);
@@ -744,11 +858,7 @@ function initAdminPortal() {
     const url = document.getElementById('gal-url').value;
     const category = document.getElementById('gal-category').value;
 
-    const newImg = {
-      title,
-      url,
-      category
-    };
+    const newImg = { title, url, category };
 
     if (isLiveDatabase()) {
       await addGalleryItem(newImg);
@@ -805,7 +915,6 @@ function updateAdminDashboard() {
       </td>
     `;
 
-    // Status change handler
     row.querySelector('.action-select-sm').addEventListener('change', async function() {
       const enqId = this.getAttribute('data-id');
       if (isLiveDatabase()) {
@@ -821,7 +930,6 @@ function updateAdminDashboard() {
       updateAdminDashboard();
     });
 
-    // Delete inquiry handler
     row.querySelector('.btn-delete-sm').addEventListener('click', async function() {
       const enqId = this.getAttribute('data-id');
       if (confirm(`Are you sure you want to delete inquiry from ${enq.parentName}?`)) {
@@ -883,11 +991,9 @@ function initializeComponents() {
   initAdminPortal();
   initAccordion();
 
-  // Load from local storage initially
   renderAchievements();
   renderGallery();
   updateStats();
 
-  // Synchronize Firestore records if configured
   syncLiveDatabase();
 }
