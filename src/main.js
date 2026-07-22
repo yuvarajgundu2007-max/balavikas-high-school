@@ -1,10 +1,20 @@
 import './style.css';
+import { 
+  getAchievements, 
+  addAchievement, 
+  getGallery, 
+  addGalleryItem, 
+  getEnquiries, 
+  addEnquiry, 
+  updateEnquiryStatus, 
+  deleteEnquiry, 
+  isLiveDatabase 
+} from './firebase.js';
 
 /* ==========================================================================
-   Balavikas School Main Engine (Vanilla JS)
+   Balavikas School Main Engine with Live Firebase & Local Storage Fallback
    ========================================================================== */
 
-// 1. Initial State & Local Storage Setup
 const DEFAULT_ACHIEVEMENTS = [
   {
     id: 'ach-1',
@@ -100,7 +110,7 @@ const DEFAULT_ENQUIRIES = [
   }
 ];
 
-// Load or initialize LocalStorage
+// Load local database initially as fallback
 const getStorageItem = (key, defaultVal) => {
   const item = localStorage.getItem(key);
   if (!item) {
@@ -116,14 +126,32 @@ let db = {
   enquiries: getStorageItem('bv_enquiries', DEFAULT_ENQUIRIES)
 };
 
-const saveDB = () => {
+// Sync live database on boot
+async function syncLiveDatabase() {
+  console.log('Loading database records...');
+  db.achievements = await getAchievements(db.achievements);
+  db.gallery = await getGallery(db.gallery);
+  db.enquiries = await getEnquiries(db.enquiries);
+
+  // Redraw UI with loaded records
+  renderAchievements();
+  renderGallery();
+  updateStats();
+  updateAdminDashboard();
+}
+
+// Local Storage Fallback Sync
+const saveLocalDB = () => {
   localStorage.setItem('bv_achievements', JSON.stringify(db.achievements));
   localStorage.setItem('bv_gallery', JSON.stringify(db.gallery));
   localStorage.setItem('bv_enquiries', JSON.stringify(db.enquiries));
   updateStats();
 };
 
-// 2. Client-Side Hash Routing Engine
+/* ==========================================================================
+   Client-Side Hash Routing Engine
+   ========================================================================== */
+
 const handleRoute = () => {
   const hash = window.location.hash || '#home';
   const sections = document.querySelectorAll('.page-section');
@@ -138,7 +166,6 @@ const handleRoute = () => {
     }
   });
 
-  // If no sections matched, fall back to home
   if (!activeSection) {
     document.getElementById('home').classList.add('section-active');
   }
@@ -159,7 +186,6 @@ const handleRoute = () => {
   navMenu.classList.remove('open');
   toggleBtn.querySelector('.hamburger').style.backgroundColor = 'white';
 
-  // Specific panel triggers
   if (hash === '#admin') {
     checkAdminSession();
   }
@@ -224,14 +250,12 @@ function initVideoPlayer() {
 
   if (!video) return;
 
-  // Formatting utility
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Play / Pause toggler
   const togglePlay = () => {
     if (video.paused || video.ended) {
       video.play();
@@ -253,13 +277,11 @@ function initVideoPlayer() {
     playBtn.querySelector('.icon-pause').classList.add('hidden');
   });
 
-  // Seeker reset restart
   restartBtn.addEventListener('click', () => {
     video.currentTime = 0;
     video.play();
   });
 
-  // Mute volume
   muteBtn.addEventListener('click', () => {
     video.muted = !video.muted;
     if (video.muted) {
@@ -271,7 +293,6 @@ function initVideoPlayer() {
     }
   });
 
-  // CC toggling
   ccBtn.addEventListener('click', () => {
     showCC = !showCC;
     if (showCC) {
@@ -283,13 +304,12 @@ function initVideoPlayer() {
     }
   });
 
-  // Fullscreen trigger
   fullscreenBtn.addEventListener('click', () => {
     if (!document.fullscreenElement) {
       const container = document.getElementById('tour-player-container');
       if (container.requestFullscreen) {
         container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) { // Safari
+      } else if (container.webkitRequestFullscreen) {
         container.webkitRequestFullscreen();
       }
     } else {
@@ -299,12 +319,10 @@ function initVideoPlayer() {
     }
   });
 
-  // Update Time, progress seeker, and CC captions text
   video.addEventListener('timeupdate', () => {
     const curTime = video.currentTime;
     const duration = video.duration || 0;
     
-    // Seeker progress percentage
     if (duration > 0) {
       const pct = (curTime / duration) * 100;
       timelineProgress.style.width = pct + '%';
@@ -312,7 +330,6 @@ function initVideoPlayer() {
       videoTimeText.textContent = `${formatTime(curTime)} / ${formatTime(duration)}`;
     }
 
-    // Synchronized CC caption updates
     if (showCC) {
       const currentCaption = CAPTIONS.find(c => curTime >= c.start && curTime < c.end);
       if (currentCaption) {
@@ -323,7 +340,6 @@ function initVideoPlayer() {
       }
     }
 
-    // Synchronize active chapter highlights in the navigation panel
     const currentChapter = CHAPTERS.find(chap => curTime >= chap.start && curTime < chap.end);
     if (currentChapter) {
       const activeBtn = document.querySelector(`.chapter-item[data-time="${currentChapter.start === 0 ? '0' : currentChapter.start}"]`);
@@ -334,7 +350,6 @@ function initVideoPlayer() {
     }
   });
 
-  // Buffer progress
   video.addEventListener('progress', () => {
     const duration = video.duration || 0;
     if (duration > 0 && video.buffered.length > 0) {
@@ -344,7 +359,6 @@ function initVideoPlayer() {
     }
   });
 
-  // Seeker Drag and Drop / Clicks
   const seek = (e) => {
     const rect = timelineContainer.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
@@ -364,7 +378,6 @@ function initVideoPlayer() {
     isDragging = false;
   });
 
-  // Chapter buttons trigger playback head jump
   document.querySelectorAll('.chapter-item').forEach(button => {
     button.addEventListener('click', function() {
       const targetTime = parseFloat(this.getAttribute('data-time'));
@@ -443,9 +456,7 @@ function renderGallery(filter = 'all') {
   });
 }
 
-// Interactive filter listeners
 function initFilterSystems() {
-  // Achievements tabs
   document.querySelectorAll('.tab-filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.tab-filter-btn').forEach(b => b.classList.remove('active'));
@@ -454,7 +465,6 @@ function initFilterSystems() {
     });
   });
 
-  // Gallery tabs
   document.querySelectorAll('.gallery-filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.gallery-filter-btn').forEach(b => b.classList.remove('active'));
@@ -477,7 +487,7 @@ function openLightbox(list, index) {
   
   const modal = document.getElementById('gallery-lightbox-modal');
   modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden'; // Stop page scroll
+  document.body.style.overflow = 'hidden';
   
   updateLightboxContent();
 }
@@ -504,7 +514,7 @@ function initLightboxEvents() {
 
   const closeLightbox = () => {
     modal.classList.add('hidden');
-    document.body.style.overflow = ''; // Re-enable scroll
+    document.body.style.overflow = '';
   };
 
   closeBtn.addEventListener('click', closeLightbox);
@@ -522,7 +532,6 @@ function initLightboxEvents() {
     updateLightboxContent();
   });
 
-  // Keyboard navigation
   window.addEventListener('keydown', (e) => {
     if (modal.classList.contains('hidden')) return;
     if (e.key === 'Escape') closeLightbox();
@@ -540,7 +549,6 @@ function initModalsAndForms() {
   const triggers = document.querySelectorAll('.enquire-trigger-btn');
   const closeModalBtn = document.getElementById('modal-close-btn');
 
-  // Trigger admissions modal popup
   triggers.forEach(btn => {
     btn.addEventListener('click', () => {
       enquireModal.classList.remove('hidden');
@@ -562,7 +570,7 @@ function initModalsAndForms() {
 
   // Admission Enquiry Submit
   const enquiryForm = document.getElementById('admission-enquiry-form');
-  enquiryForm.addEventListener('submit', (e) => {
+  enquiryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const studentName = document.getElementById('enq-student-name').value;
@@ -574,7 +582,6 @@ function initModalsAndForms() {
 
     const refId = 'BV-' + Math.floor(1000 + Math.random() * 9000);
     const newEnq = {
-      id: refId,
       studentName,
       parentName,
       grade,
@@ -585,22 +592,35 @@ function initModalsAndForms() {
       date: new Date().toISOString()
     };
 
-    db.enquiries.unshift(newEnq);
-    saveDB();
+    // Save to Live Database if configured, otherwise fallback to local
+    let id = refId;
+    if (isLiveDatabase()) {
+      const fbId = await addEnquiry(newEnq);
+      if (fbId) id = fbId;
+    } else {
+      newEnq.id = refId;
+      db.enquiries.unshift(newEnq);
+      saveLocalDB();
+    }
 
-    // Show Success screen
+    // Refresh memory models and UI
+    if (isLiveDatabase()) {
+      db.enquiries = await getEnquiries(db.enquiries);
+    }
+
     enquiryForm.classList.add('hidden');
     const successMsg = document.getElementById('enquiry-success-message');
-    document.getElementById('enquiry-ref-id').textContent = refId;
+    document.getElementById('enquiry-ref-id').textContent = id.substring(0, 8).toUpperCase();
     successMsg.classList.remove('hidden');
     enquiryForm.reset();
+    updateAdminDashboard();
   });
 
   // Public Query Form Submit
   const queryForm = document.getElementById('public-query-form');
   const successAlert = document.getElementById('query-success-alert');
 
-  queryForm.addEventListener('submit', (e) => {
+  queryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const parentName = document.getElementById('query-name').value;
@@ -611,7 +631,6 @@ function initModalsAndForms() {
 
     const refId = 'BV-Q-' + Math.floor(1000 + Math.random() * 9000);
     const newEnq = {
-      id: refId,
       studentName: 'General Query',
       parentName,
       grade: subject,
@@ -622,15 +641,20 @@ function initModalsAndForms() {
       date: new Date().toISOString()
     };
 
-    db.enquiries.unshift(newEnq);
-    saveDB();
+    if (isLiveDatabase()) {
+      await addEnquiry(newEnq);
+      db.enquiries = await getEnquiries(db.enquiries);
+    } else {
+      newEnq.id = refId;
+      db.enquiries.unshift(newEnq);
+      saveLocalDB();
+    }
 
-    // Show Success
     queryForm.classList.add('hidden');
     successAlert.classList.remove('hidden');
     queryForm.reset();
+    updateAdminDashboard();
 
-    // Revert form layout back after 6 seconds
     setTimeout(() => {
       successAlert.classList.add('hidden');
       queryForm.classList.remove('hidden');
@@ -663,7 +687,6 @@ function initAdminPortal() {
   const errorMsg = document.getElementById('login-error-msg');
   const logoutBtn = document.getElementById('admin-logout-btn');
 
-  // Login handler
   loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     if (passwordInput.value === 'admin123') {
@@ -677,7 +700,6 @@ function initAdminPortal() {
     }
   });
 
-  // Logout handler
   logoutBtn.addEventListener('click', () => {
     sessionStorage.removeItem('bv_admin_session');
     checkAdminSession();
@@ -686,7 +708,7 @@ function initAdminPortal() {
 
   // Add Achievement Form Submit
   const achievementForm = document.getElementById('admin-add-achievement-form');
-  achievementForm.addEventListener('submit', (e) => {
+  achievementForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('ach-name').value;
     const desc = document.getElementById('ach-desc').value;
@@ -694,40 +716,52 @@ function initAdminPortal() {
     const year = document.getElementById('ach-year').value;
 
     const newAch = {
-      id: 'ach-' + Date.now(),
       name,
       desc,
       category,
       year
     };
 
-    db.achievements.unshift(newAch);
-    saveDB();
+    if (isLiveDatabase()) {
+      await addAchievement(newAch);
+      db.achievements = await getAchievements(db.achievements);
+    } else {
+      newAch.id = 'ach-' + Date.now();
+      db.achievements.unshift(newAch);
+      saveLocalDB();
+    }
+
     achievementForm.reset();
     renderAchievements(document.querySelector('.tab-filter-btn.active').getAttribute('data-filter'));
-    updateAdminDashboard();
+    updateStats();
   });
 
   // Add Gallery Form Submit
   const galleryForm = document.getElementById('admin-add-gallery-form');
-  galleryForm.addEventListener('submit', (e) => {
+  galleryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = document.getElementById('gal-title').value;
     const url = document.getElementById('gal-url').value;
     const category = document.getElementById('gal-category').value;
 
     const newImg = {
-      id: 'gal-' + Date.now(),
       title,
       url,
       category
     };
 
-    db.gallery.unshift(newImg);
-    saveDB();
+    if (isLiveDatabase()) {
+      await addGalleryItem(newImg);
+      db.gallery = await getGallery(db.gallery);
+    } else {
+      newImg.id = 'gal-' + Date.now();
+      db.gallery.unshift(newImg);
+      saveLocalDB();
+    }
+
     galleryForm.reset();
     renderGallery(document.querySelector('.gallery-filter-btn.active').getAttribute('data-filter'));
-    updateAdminDashboard();
+    updateStats();
   });
 }
 
@@ -753,7 +787,7 @@ function updateAdminDashboard() {
     row.innerHTML = `
       <td>
         <div style="font-weight: 700;">${enq.parentName}</div>
-        <div style="font-size: 0.75rem; color: var(--neutral-slate);">Ref: ${enq.id} | Student: ${enq.studentName}</div>
+        <div style="font-size: 0.75rem; color: var(--neutral-slate);">Ref: ${enq.id.substring(0, 8)} | Student: ${enq.studentName}</div>
       </td>
       <td>${enq.grade}</td>
       <td>${enq.mobile}</td>
@@ -771,24 +805,35 @@ function updateAdminDashboard() {
       </td>
     `;
 
-    // Dropdown change listener
-    row.querySelector('.action-select-sm').addEventListener('change', function() {
+    // Status change handler
+    row.querySelector('.action-select-sm').addEventListener('change', async function() {
       const enqId = this.getAttribute('data-id');
-      const matched = db.enquiries.find(e => e.id === enqId);
-      if (matched) {
-        matched.status = this.value;
-        saveDB();
-        updateAdminDashboard();
+      if (isLiveDatabase()) {
+        await updateEnquiryStatus(enqId, this.value);
+        db.enquiries = await getEnquiries(db.enquiries);
+      } else {
+        const matched = db.enquiries.find(e => e.id === enqId);
+        if (matched) {
+          matched.status = this.value;
+          saveLocalDB();
+        }
       }
+      updateAdminDashboard();
     });
 
-    // Delete button listener
-    row.querySelector('.btn-delete-sm').addEventListener('click', function() {
+    // Delete inquiry handler
+    row.querySelector('.btn-delete-sm').addEventListener('click', async function() {
       const enqId = this.getAttribute('data-id');
       if (confirm(`Are you sure you want to delete inquiry from ${enq.parentName}?`)) {
-        db.enquiries = db.enquiries.filter(e => e.id !== enqId);
-        saveDB();
+        if (isLiveDatabase()) {
+          await deleteEnquiry(enqId);
+          db.enquiries = await getEnquiries(db.enquiries);
+        } else {
+          db.enquiries = db.enquiries.filter(e => e.id !== enqId);
+          saveLocalDB();
+        }
         updateAdminDashboard();
+        updateStats();
       }
     });
 
@@ -815,13 +860,10 @@ function initAccordion() {
     header.addEventListener('click', function() {
       const item = this.parentElement;
       const content = item.querySelector('.facility-content');
-      
-      // Toggle active states
       content.classList.toggle('hidden');
     });
   });
   
-  // Collapse all accordion elements except the first one initially
   document.querySelectorAll('.facility-item').forEach((item, index) => {
     if (index !== 0) {
       item.querySelector('.facility-content').classList.add('hidden');
@@ -841,8 +883,11 @@ function initializeComponents() {
   initAdminPortal();
   initAccordion();
 
-  // Populate data initially
+  // Load from local storage initially
   renderAchievements();
   renderGallery();
   updateStats();
+
+  // Synchronize Firestore records if configured
+  syncLiveDatabase();
 }
