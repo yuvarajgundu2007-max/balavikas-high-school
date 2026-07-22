@@ -666,6 +666,7 @@ function initModalsAndForms() {
    ========================================================================== */
 
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'yuvarajgundu2007@gmail.com';
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'yuvaraj7777';
 
 function checkAdminSession() {
   const isLoggedIn = sessionStorage.getItem('bv_admin_session') === 'true';
@@ -700,7 +701,7 @@ function initAdminPortal() {
     const enteredEmail = emailInput.value.trim().toLowerCase();
     const enteredPassword = passwordInput.value;
 
-    if (enteredEmail === ADMIN_EMAIL.toLowerCase() && enteredPassword === 'admin123') {
+    if (enteredEmail === ADMIN_EMAIL.toLowerCase() && enteredPassword === ADMIN_PASSWORD) {
       loginError.classList.add('hidden');
       sessionStorage.setItem('bv_admin_session', 'true');
       
