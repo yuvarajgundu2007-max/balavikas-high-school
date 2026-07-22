@@ -620,38 +620,27 @@
       <!-- SECTION: ADMIN PORTAL -->
       <section id="admin" class="page-section py-20 bg-light">
         <div class="container">
-          <!-- Email OTP Authentication Gateway -->
+          <!-- Email & Password Authentication Gateway -->
           <div class="admin-login-gateway-card max-w-md mx-auto" id="admin-login-card">
             <div class="login-header text-center mb-6">
               <div class="lock-icon-circle">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </div>
               <h2 class="section-title mt-4">Admin Authentication</h2>
-              <p>A secure 6-digit verification code will be sent to the verified administrator email address.</p>
+              <p>Please enter your administrator email and password to access the portal dashboard.</p>
             </div>
 
-            <!-- STEP 1: Enter Email -->
-            <form id="admin-email-form" class="school-form">
+            <form id="admin-login-form" class="school-form">
               <div class="form-group">
-                <label for="admin-login-email" class="form-label">Verified Admin Email</label>
+                <label for="admin-login-email" class="form-label">Administrator Email</label>
                 <input type="email" id="admin-login-email" class="form-input" placeholder="e.g. yuvarajgundu2007@gmail.com" required>
-                <span class="error-text hidden" id="email-error-msg">This email address is not verified as administrator.</span>
               </div>
-              <button type="submit" class="btn btn-primary btn-block" id="send-otp-btn">Send Verification Code</button>
-            </form>
-
-            <!-- STEP 2: Enter OTP Code (Initially Hidden) -->
-            <form id="admin-otp-form" class="school-form hidden">
               <div class="form-group">
-                <label for="admin-login-otp" class="form-label">Enter 6-Digit Code</label>
-                <input type="text" id="admin-login-otp" class="form-input text-center" placeholder="0 0 0 0 0 0" required maxlength="6" pattern="[0-9]{6}" style="font-size: 1.5rem; letter-spacing: 6px; font-weight: 700;">
-                <span class="error-text hidden" id="otp-error-msg">Invalid or expired verification code.</span>
-                <span class="info-text" id="otp-sent-status" style="font-size: 0.8rem; color: #16a34a; margin-top: 4px; font-weight: 500;"></span>
+                <label for="admin-password" class="form-label">Portal Password</label>
+                <input type="password" id="admin-password" class="form-input" placeholder="Enter password" required>
+                <span class="error-text hidden" id="login-error-msg">Incorrect credentials. Access denied.</span>
               </div>
-              <button type="submit" class="btn btn-primary btn-block">Verify & Authenticate</button>
-              <div class="text-center mt-4">
-                <button type="button" class="btn-text" id="resend-otp-btn" style="font-size: 0.85rem; border: none; background: none; cursor: pointer;">Resend Code</button>
-              </div>
+              <button type="submit" class="btn btn-primary btn-block">Authenticate Portal</button>
             </form>
             
             <div class="text-center mt-6">
