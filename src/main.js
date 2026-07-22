@@ -665,7 +665,7 @@ function initModalsAndForms() {
    Admin Portal Controller and Email Verification OTP System
    ========================================================================== */
 
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@balavikaskadapa.edu.in';
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'yuvarajgundu2007@gmail.com';
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
